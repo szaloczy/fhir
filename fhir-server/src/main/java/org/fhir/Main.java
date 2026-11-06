@@ -12,6 +12,15 @@ public class Main {
 
         public static void main(String[] args) {
 
+            FhirServer server = new FhirServer(8080);
+            try {
+                server.start();
+
+            } catch (Exception e) {
+                System.out.println(e.getMessage());
+                e.printStackTrace();
+            }
+
             //initialize FHIR R4 context
             FhirContext ctx = FhirContext.forR4();
 
@@ -32,7 +41,7 @@ public class Main {
                     );
 
                     System.out.println(
-                            "Tokan URL: " +
+                            "Token URL: " +
                                     smartUrl.get().tokenUrl()
                     );
                 } else {
@@ -44,7 +53,6 @@ public class Main {
                 System.err.println("FHIR request failed: " + e.getMessage());
                 e.printStackTrace();
             }
-
 
         }
 }
