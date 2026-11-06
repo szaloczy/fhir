@@ -2,8 +2,6 @@ package org.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
-
-import javax.swing.text.html.Option;
 import java.util.Optional;
 
 public class Main {

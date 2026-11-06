@@ -4,6 +4,10 @@ import org.eclipse.jetty.ee10.servlet.ServletContextHandler;
 import org.eclipse.jetty.ee10.servlet.ServletHolder;
 import org.eclipse.jetty.server.Server;
 
+/**
+ * Setup Jetty http servlet
+ * **/
+
 public class FhirServer {
     private final Server server;
 
