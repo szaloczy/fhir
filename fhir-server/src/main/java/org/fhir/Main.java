@@ -1,17 +1,25 @@
 package org.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
-import ca.uhn.fhir.rest.client.api.HttpClientUtil;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
 
-import java.io.IOException;
+import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Main {
 
         private static final String fhirServer = "https://launch.smarthealthit.org/v/r4/sim/WzIsIiIsImY0YmY1MjY1LThkOGUtNDA1NS1hNGU1LWIzNDg1M2YxMDk5ZiIsIkFVVE8iLDAsMCwwLCIiLCIiLCIiLCIiLCIiLCIiLCIiLDAsMSwiIl0/fhir/";
+        private static final String CLIENT_ID = "app-client-id";
+        private static final String REDIRECT_URI = "http://192.168.0.21:8080";
+        private static final HttpClient client = HttpClient.newHttpClient();
+        private static String authorizeUrl = "";
+        private static String tokenUrl = "";
 
         public static void main(String[] args) {
 
@@ -29,10 +37,7 @@ public class Main {
 
             //Create a client for the remote FHIR server
             IGenericClient fhirClient = ctx.newRestfulGenericClient(fhirServer);
-
             System.out.println("Fhir server: " + fhirServer);
-
-            String authorizeUrl = "";
 
             try {
                 Optional<FhirUtils.SmartUrls> smartUrl = FhirUtils.tryGetSmartUrls(fhirClient);
@@ -41,6 +46,7 @@ public class Main {
                 if (smartUrl.isPresent()) {
                     System.out.println("SMART endpoints found !");
                     authorizeUrl = smartUrl.get().authorizeUrl();
+                    tokenUrl = smartUrl.get().tokenUrl();
 
                     System.out.println(
                             "Authorization URL: " +
@@ -61,15 +67,6 @@ public class Main {
                 e.printStackTrace();
             }
 
-//            String url = authorizeUrl +
-//                    "?response_type=code" +
-//                    "client_id=app-client-id&" +
-//                    "&redirect_uri" = +HttpUtility.UrlEncode("http://192.168.0.21/8080") +
-//                    "&scope="+ HttpUtility.UrlEncode("openid+fhirUser+profile+launch/patient+patient/*.read") +
-//                    "&state=local_state" +
-//                    "&aud="+fhirServer;
-
-            String redirectUri = "http://192.168.0.21:8080";
             String scope = "openid fhirUser profile launch/patient patient/*.read";
 
             String audience = fhirServer.endsWith("/")
@@ -78,9 +75,9 @@ public class Main {
 
             String url = authorizeUrl
                     + "?response_type=code"
-                    + "&client_id=app-client-id"
+                    + "&client_id=" + CLIENT_ID
                     + "&redirect_uri=" + URLEncoder.encode(
-                    redirectUri, StandardCharsets.UTF_8)
+                    REDIRECT_URI, StandardCharsets.UTF_8)
                     + "&scope=" + URLEncoder.encode(
                     scope, StandardCharsets.UTF_8)
                     + "&state=local_state"
@@ -92,8 +89,47 @@ public class Main {
         }
 
         public static void setAuthCode(String code, String state) {
-            System.out.println("Code: " + code);
-            System.out.println("state? " + state);
+            System.out.println("Received code: " + code);
+
+            Map<String, String> requestValues = new HashMap<>() {{
+                put("grant_type","authorization_code");
+                put("code", code);
+                put("redirect_uri", REDIRECT_URI);
+                put("client_id", CLIENT_ID);
+            }};
+            String formData = requestValues.entrySet()
+                    .stream()
+                    .map(entry ->
+                            URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8)
+                                    + "=" +
+                                    URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8)
+                    )
+                    .collect(Collectors.joining("&"));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(tokenUrl))
+                    .header(
+                            "Content-Type",
+                            "application/x-www-form-urlencoded"
+                    )
+                    .header("Accept","application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(formData))
+                    .build();
+
+            var response = client.sendAsync(
+                    request,
+                    HttpResponse.BodyHandlers.ofString()
+            );
+
+            response.thenAccept(res -> {
+                System.out.println("HTTP status: " + res.statusCode());
+                System.out.println("Response: ");
+                System.out.println(res.body());
+            }).exceptionally(error -> {
+                System.err.println("Token request failed: " + error.getMessage());
+
+                return null;
+            });
         }
 
     /**
