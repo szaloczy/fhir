@@ -19,7 +19,7 @@ public class FhirServer {
         ctx.setContextPath("/");
         ctx.addServlet(
                 new ServletHolder(new HelloServlet()),
-                "/print"
+                "/"
         );
 
         //Register Fhir server
