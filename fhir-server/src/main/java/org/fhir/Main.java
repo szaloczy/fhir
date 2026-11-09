@@ -2,6 +2,7 @@ package org.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -124,6 +125,27 @@ public class Main {
             response.thenAccept(res -> {
                 System.out.println("HTTP status: " + res.statusCode());
                 System.out.println("Response: ");
+
+                try {
+                    if (res.statusCode() < 200 || res.statusCode() >= 300) {
+                        System.err.println("Token request failed: " + res.statusCode());
+                        System.err.println(res.body());
+                        return;
+                    }
+
+                    ObjectMapper objectMapper = new ObjectMapper();
+
+                    SmartResponseDTO smartResponseDTO = objectMapper.readValue(
+                            res.body(),
+                            SmartResponseDTO.class
+                    );
+
+
+                } catch (Exception e) {
+                    System.err.println("Failed to deserialize token response: " + e.getMessage());
+                    e.printStackTrace();
+                }
+
                 System.out.println(res.body());
             }).exceptionally(error -> {
                 System.err.println("Token request failed: " + error.getMessage());
@@ -131,6 +153,22 @@ public class Main {
                 return null;
             });
         }
+
+    /**
+     * Use a SMART token with the FHIR Net API
+     * @param smartResponseDTO
+     */
+    public static void useToken(SmartResponseDTO smartResponseDTO) {
+        if (smartResponseDTO == null) {
+            throw new IllegalArgumentException();
+        }
+
+        FhirContext ctx = new FhirContext().forR4();
+
+        IGenericClient fhirClient = ctx.newRestfulGenericClient(fhirServer);
+
+        //TODO: Handle an event before fhirClient makes a request, add authorization header "Bearer {smartResponseDTO}
+    }
 
     /**
      * Launch a url the use's default web browser
