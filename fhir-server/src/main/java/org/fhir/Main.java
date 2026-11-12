@@ -2,7 +2,9 @@ package org.fhir;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.rest.client.api.IGenericClient;
+import ca.uhn.fhir.rest.client.interceptor.BearerTokenAuthInterceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.hl7.fhir.r4.model.Patient;
 
 import java.net.URI;
 import java.net.URLEncoder;
@@ -11,6 +13,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public class Main {
@@ -90,6 +93,16 @@ public class Main {
         }
 
         public static void setAuthCode(String code, String state) {
+
+            if (code == null || code.isBlank()) {
+                System.err.println("Authorization code is missing. Ignoring request.");
+                return;
+            }
+
+            if (state == null || !state.equals("local_state")) {
+                System.err.println("Invalid OAuth state");
+                return;
+            }
             System.out.println("Received code: " + code);
 
             Map<String, String> requestValues = new HashMap<>() {{
@@ -140,6 +153,7 @@ public class Main {
                             SmartResponseDTO.class
                     );
 
+                    CompletableFuture.runAsync(() -> useToken(smartResponseDTO));
 
                 } catch (Exception e) {
                     System.err.println("Failed to deserialize token response: " + e.getMessage());
@@ -152,6 +166,8 @@ public class Main {
 
                 return null;
             });
+
+
         }
 
     /**
@@ -167,11 +183,21 @@ public class Main {
 
         IGenericClient fhirClient = ctx.newRestfulGenericClient(fhirServer);
 
-        //TODO: Handle an event before fhirClient makes a request, add authorization header "Bearer {smartResponseDTO}
+        BearerTokenAuthInterceptor authInterceptor = new BearerTokenAuthInterceptor(smartResponseDTO.accessToken());
+        fhirClient.registerInterceptor(authInterceptor);
+
+        Patient patient = fhirClient
+                .read()
+                .resource(Patient.class)
+                .withId(smartResponseDTO
+                        .patient())
+                .execute();
+
+        System.out.println("Patient: " + patient.getNameFirstRep().getNameAsSingleString());
     }
 
     /**
-     * Launch a url the use's default web browser
+     * Launch a url the user's default web browser
      * @param url
      */
     public static void launchUrl(String url) {
